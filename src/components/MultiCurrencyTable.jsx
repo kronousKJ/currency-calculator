@@ -2,102 +2,95 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const MultiCurrencyTable = () => {
+  const [balance, setBalance] = useState(1000000); // 초기 잔액 (KRW)
+  const [expenses, setExpenses] = useState([]);
   const [amount, setAmount] = useState('');
-  const [fromCurrency, setFromCurrency] = useState('KRW');
-  const [toCurrency, setToCurrency] = useState('USD');
+  const [currency, setCurrency] = useState('KRW');
+  const [description, setDescription] = useState('');
   const [exchangeRates, setExchangeRates] = useState({});
-  const [result, setResult] = useState(null);
 
   useEffect(() => {
-    const fetchExchangeRates = async () => {
-      try {
-        const response = await axios.get('https://quotation-api-cdn.dunamu.com/v1/forex/recent?codes=FRX.KRWUSD,FRX.KRWEUR,FRX.KRWGBP');
-        if (response.data && response.data.length > 0) {
-          const rates = {};
-          response.data.forEach(item => {
-            rates[item.currencyCode.replace('KRW', '')] = item.basePrice;
-          });
-          setExchangeRates(rates);
-        }
-      } catch (error) {
-        console.error('환율 정보를 가져오는데 실패했습니다:', error);
-      }
-    };
-
     fetchExchangeRates();
   }, []);
 
-  const handleConvert = () => {
-    if (exchangeRates && amount) {
-      if (fromCurrency === 'KRW') {
-        setResult(parseFloat(amount) / exchangeRates[toCurrency]);
-      } else if (toCurrency === 'KRW') {
-        setResult(parseFloat(amount) * exchangeRates[fromCurrency]);
-      } else {
-        setResult((parseFloat(amount) * exchangeRates[fromCurrency]) / exchangeRates[toCurrency]);
-      }
+  const fetchExchangeRates = async () => {
+    try {
+      const response = await axios.get('https://api.exchangerate-api.com/v4/latest/KRW');
+      setExchangeRates(response.data.rates);
+    } catch (error) {
+      console.error('환율 정보를 가져오는데 실패했습니다:', error);
     }
   };
 
-  const currencies = ['KRW', 'USD', 'EUR', 'GBP'];
+  const handleAddExpense = () => {
+    if (amount && currency && description) {
+      const newExpense = {
+        amount: parseFloat(amount),
+        currency,
+        description,
+        date: new Date().toISOString(),
+      };
+      setExpenses([...expenses, newExpense]);
+      setAmount('');
+      setDescription('');
+      updateBalance(newExpense);
+    }
+  };
+
+  const updateBalance = (expense) => {
+    const rate = exchangeRates[expense.currency];
+    const amountInKRW = expense.currency === 'KRW' ? expense.amount : expense.amount / rate;
+    setBalance(prevBalance => prevBalance - amountInKRW);
+  };
 
   return (
-    <div className="bg-white shadow-md rounded-lg p-6">
-      <h2 className="text-2xl font-bold mb-4">통화 변환</h2>
+    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-xl">
+      <h1 className="text-2xl font-bold mb-4">다국어 경비 트래커</h1>
+      <p className="text-xl mb-4">잔액: {balance.toFixed(2)} KRW</p>
       <div className="mb-4">
         <input
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded"
-          placeholder="금액 입력"
+          placeholder="금액"
+          className="w-full p-2 border rounded"
         />
       </div>
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div>
-          <label className="block mb-2">From</label>
-          <select
-            value={fromCurrency}
-            onChange={(e) => setFromCurrency(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded"
-          >
-            {currencies.map(currency => (
-              <option key={currency} value={currency}>{currency}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block mb-2">To</label>
-          <select
-            value={toCurrency}
-            onChange={(e) => setToCurrency(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded"
-          >
-            {currencies.map(currency => (
-              <option key={currency} value={currency}>{currency}</option>
-            ))}
-          </select>
-        </div>
+      <div className="mb-4">
+        <select
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+          className="w-full p-2 border rounded"
+        >
+          <option value="KRW">KRW</option>
+          <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
+          <option value="GBP">GBP</option>
+        </select>
+      </div>
+      <div className="mb-4">
+        <input
+          type="text"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="설명"
+          className="w-full p-2 border rounded"
+        />
       </div>
       <button
-        onClick={handleConvert}
-        className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 transition-colors"
+        onClick={handleAddExpense}
+        className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
       >
-        변환
+        지출 추가
       </button>
-      {result !== null && (
-        <div className="mt-4 text-lg">
-          결과: {amount} {fromCurrency} = {result.toFixed(2)} {toCurrency}
-        </div>
-      )}
-      {Object.keys(exchangeRates).length > 0 && (
-        <div className="mt-2 text-sm text-gray-600">
-          현재 환율:<br />
-          1 USD = {exchangeRates['USD'].toFixed(2)} KRW<br />
-          1 EUR = {exchangeRates['EUR'].toFixed(2)} KRW<br />
-          1 GBP = {exchangeRates['GBP'].toFixed(2)} KRW
-        </div>
-      )}
+      <div className="mt-6">
+        <h2 className="text-xl font-bold mb-2">지출 내역:</h2>
+        {expenses.map((expense, index) => (
+          <div key={index} className="mb-2">
+            {expense.amount} {expense.currency} - {expense.description}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
