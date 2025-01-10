@@ -1,17 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 
 const MultiCurrencyTable = () => {
   const [amount, setAmount] = useState('');
-  const [fromCurrency, setFromCurrency] = useState('USD');
-  const [toCurrency, setToCurrency] = useState('EUR');
+  const [fromCurrency, setFromCurrency] = useState('KRW');
+  const [toCurrency, setToCurrency] = useState('USD');
+  const [exchangeRates, setExchangeRates] = useState({});
   const [result, setResult] = useState(null);
 
-  const currencies = ['USD', 'EUR', 'JPY', 'GBP', 'AUD', 'CAD', 'CHF', 'CNY', 'KRW'];
+  useEffect(() => {
+    const fetchExchangeRates = async () => {
+      try {
+        const response = await axios.get('https://quotation-api-cdn.dunamu.com/v1/forex/recent?codes=FRX.KRWUSD,FRX.KRWEUR,FRX.KRWGBP');
+        if (response.data && response.data.length > 0) {
+          const rates = {};
+          response.data.forEach(item => {
+            rates[item.currencyCode.replace('KRW', '')] = item.basePrice;
+          });
+          setExchangeRates(rates);
+        }
+      } catch (error) {
+        console.error('환율 정보를 가져오는데 실패했습니다:', error);
+      }
+    };
+
+    fetchExchangeRates();
+  }, []);
 
   const handleConvert = () => {
-    // 여기에 실제 변환 로직을 구현합니다. 지금은 더미 데이터를 사용합니다.
-    setResult(parseFloat(amount) * 0.85); // 예시: USD to EUR
+    if (exchangeRates && amount) {
+      if (fromCurrency === 'KRW') {
+        setResult(parseFloat(amount) / exchangeRates[toCurrency]);
+      } else if (toCurrency === 'KRW') {
+        setResult(parseFloat(amount) * exchangeRates[fromCurrency]);
+      } else {
+        setResult((parseFloat(amount) * exchangeRates[fromCurrency]) / exchangeRates[toCurrency]);
+      }
+    }
   };
+
+  const currencies = ['KRW', 'USD', 'EUR', 'GBP'];
 
   return (
     <div className="bg-white shadow-md rounded-lg p-6">
@@ -33,7 +61,7 @@ const MultiCurrencyTable = () => {
             onChange={(e) => setFromCurrency(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded"
           >
-            {currencies.map((currency) => (
+            {currencies.map(currency => (
               <option key={currency} value={currency}>{currency}</option>
             ))}
           </select>
@@ -45,7 +73,7 @@ const MultiCurrencyTable = () => {
             onChange={(e) => setToCurrency(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded"
           >
-            {currencies.map((currency) => (
+            {currencies.map(currency => (
               <option key={currency} value={currency}>{currency}</option>
             ))}
           </select>
@@ -60,6 +88,14 @@ const MultiCurrencyTable = () => {
       {result !== null && (
         <div className="mt-4 text-lg">
           결과: {amount} {fromCurrency} = {result.toFixed(2)} {toCurrency}
+        </div>
+      )}
+      {Object.keys(exchangeRates).length > 0 && (
+        <div className="mt-2 text-sm text-gray-600">
+          현재 환율:<br />
+          1 USD = {exchangeRates['USD'].toFixed(2)} KRW<br />
+          1 EUR = {exchangeRates['EUR'].toFixed(2)} KRW<br />
+          1 GBP = {exchangeRates['GBP'].toFixed(2)} KRW
         </div>
       )}
     </div>
